@@ -1,10 +1,17 @@
 const { json, request } = require("express");
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 exports.register = async (req, res) => {
   try {
-    const { password } = req.body;
+    const { password, email } = req.body;
+    const found = await User.findOne({ email });
+    if (found) {
+      return res.json({
+        message: "Email allready exits",
+      });
+    }
     const hasPass = await bcrypt.hash(password, 10);
     const result = await User.create({
       ...req.body,
@@ -15,16 +22,51 @@ exports.register = async (req, res) => {
       result,
     });
   } catch (error) {
-    res.json({ message: "Someting went wrong", error });
+    res.json({ message: "Someting went wrong" + error });
   }
 };
 exports.fetchUsers = async (req, res) => {
   try {
+    const token = req.headers.authorization;
+    if (!token) {
+      return res.json({ message: " Plz Provide Token" });
+    }
+    jwt.verify(token, process.env.JWT_KEY);
+
     const result = await User.find();
     res.json({
       message: "User Fetch success ",
       result,
     });
+  } catch (error) {
+    res.json({ message: "Someting went wrong" + error });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    //email exits
+    const { email, password } = req.body;
+    const result = await User.findOne({ email });
+    if (!result) {
+      return res.json({ message: "Email is not regitered eith us" });
+    }
+
+    const match = await bcrypt.compare(password, result.password);
+    if (!match) {
+      return res.json({ message: "Password do not match" });
+    }
+    const token = jwt.sign({ name: "john" }, process.env.JWT_KEY);
+    return res.json({ message: "Login Success", token });
+  } catch (error) {
+    res.json({ message: "Someting went wrong" + error });
+  }
+};
+
+exports.destroy = async (req, res) => {
+  try {
+    await User.deleteMany();
+    res.json({ message: "User Destroy success " });
   } catch (error) {
     res.json({ message: "Someting went wrong", error });
   }
